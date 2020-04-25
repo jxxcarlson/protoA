@@ -675,7 +675,7 @@ animationSubscriptions : Sub Msg
 animationSubscriptions =
     Sub.batch
         [ Internal.subscriptions.resize
-        , Internal.subscriptions.time
+        -- , Internal.subscriptions.time
         , Internal.subscriptions_.visibility
         ]
 

@@ -18,4 +18,12 @@ init account others =
 
 view : ConferenceModel -> Html FrontendMsg
 view model =
-    Element.layout [] (el [] (text ("Conference Room: " ++ model.foo)))
+    Element.layout [] (mainView model)
+
+
+mainView model = column [width fill, height fill
+   , Background.color <| Element.rgb255 200 200 200
+   , paddingXY 40 40]
+   [
+     el [] (text ("Conference Room: " ++ model.foo))
+   ]

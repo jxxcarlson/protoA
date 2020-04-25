@@ -87,17 +87,18 @@ type ToFrontend
     | UsernameAlreadyExists
     | UpdateOtherPlayer String
     | GotMessage Message
-    | ChunkResponse Int Int Chunk
 
 
 type alias RegisterModel =
     { username : String
     , password : String
     , password2 : String
-    , failed : Bool
+    , completeRegistration : Bool
+    , status : RegistrationStatus
     , blurred : Bool
     }
 
+type RegistrationStatus = RegistrationPending | RegistrationCompleted
 
 type RegisterMsg
     = InputUsername String

@@ -130,13 +130,13 @@ updateFromBackend msg model =
 
         ( CheckNameResponse exists, RegisterPage registerModel ) ->
             if exists then
-                ( { page = RegisterPage { registerModel | failed = True } }, Cmd.none )
+                ( { page = RegisterPage { registerModel | status = RegistrationPending } }, Cmd.none )
 
             else
-                ( { page = RegisterPage { registerModel | failed = False } }, Cmd.none )
+                ( { page = RegisterPage { registerModel | status = RegistrationCompleted, completeRegistration = True } }, Cmd.none )
 
         ( UsernameAlreadyExists, RegisterPage registerModel ) ->
-            ( { page = RegisterPage { registerModel | failed = True } }, Cmd.none )
+            ( { page = RegisterPage { registerModel | status = RegistrationPending  } }, Cmd.none )
 
 
 

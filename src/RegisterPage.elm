@@ -16,15 +16,16 @@ init =
     { username = ""
     , password = ""
     , password2 = ""
-    , failed = False
+    , status = RegistrationPending
     , blurred = False
+    , completeRegistration = False
     }
 
 
 update msg model =
     case msg of
         InputUsername string ->
-            ( { model | username = string, failed = False }, Cmd.none )
+            ( { model | username = string, status = RegistrationPending }, Cmd.none )
 
         InputPassword string ->
             ( { model | password = string }, Cmd.none )
@@ -60,7 +61,7 @@ update msg model =
 
 
 view model =
-    if True then
+    if model.status == RegistrationPending then
         let
             stats =
                 Rumkin.getStats model.password
@@ -70,7 +71,7 @@ view model =
                 [ text "Username"
                 , input [ onInput InputUsername, value model.username ] []
                 ]
-            , if model.failed then
+            , if model.status == RegistrationPending then
                 text "Username already taken"
 
               else
