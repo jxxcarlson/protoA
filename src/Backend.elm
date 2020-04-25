@@ -20,7 +20,6 @@ app =
 init : ( BackendModel, Cmd BackendMsg )
 init =
     ( { accounts = []
-      , chunks = Dict.empty
       }
     , Cmd.none
     )
@@ -36,50 +35,45 @@ update msg model =
 updateFromFrontend : SessionId -> ClientId -> ToBackend -> BackendModel -> ( BackendModel, Cmd BackendMsg )
 updateFromFrontend sessionId clientId msg model =
     case msg of
-        CreateAccount username passwordHash skin ->
+        CreateAccount username passwordHash ->
             if List.any (\a -> a.username == username) model.accounts then
                 ( model, Lamdera.sendToFrontend clientId UsernameAlreadyExists )
 
             else
-                case Character.create skin of
-                    Just character ->
-                        let
-                            account =
-                                { username = username
-                                , passwordHash = passwordHash
-                                , character = character
-                                , loggedIn = Just clientId
-                                }
+              let
+                  account =
+                      { username = username
+                      , passwordHash = passwordHash
+                      , loggedIn = Just clientId
+                      }
 
-                            others =
-                                model.accounts
-                                    |> List.filterMap
-                                        (\a ->
-                                            if a.loggedIn == Nothing then
-                                                Nothing
+                  others =
+                      model.accounts
+                          |> List.filterMap
+                              (\a ->
+                                  if a.loggedIn == Nothing then
+                                      Nothing
 
-                                            else
-                                                Just ( a.username, a.character )
-                                        )
-                                    |> Dict.fromList
+                                  else
+                                      Just a.username
+                              )
 
-                            notifyOthers =
-                                model.accounts
-                                    |> List.filterMap .loggedIn
-                                    |> List.map
-                                        (\id ->
-                                            Lamdera.sendToFrontend id (OtherLoggedIn character.skin account.username)
-                                        )
-                        in
-                        ( { model
-                            | accounts = account :: model.accounts
-                          }
-                        , Cmd.batch
-                            (Lamdera.sendToFrontend clientId (LoggedIn account others) :: notifyOthers)
-                        )
+                  notifyOthers =
+                      model.accounts
+                          |> List.filterMap .loggedIn
+                          |> List.map
+                              (\id ->
+                                  Lamdera.sendToFrontend id (OtherLoggedIn account.username)
+                              )
+              in
+              ( { model
+                  | accounts = account :: model.accounts
+                }
+              , Cmd.batch
+                  (Lamdera.sendToFrontend clientId (LoggedIn account others) :: notifyOthers)
+              )
 
-                    Nothing ->
-                        ( model, Cmd.none )
+
 
         Login username passwordHash ->
             let
@@ -100,9 +94,8 @@ updateFromFrontend sessionId clientId msg model =
                                             Nothing
 
                                         else
-                                            Just ( a.username, a.character )
+                                            Just a.username
                                     )
-                                |> Dict.fromList
 
                         notifyOthers =
                             model.accounts
@@ -110,7 +103,7 @@ updateFromFrontend sessionId clientId msg model =
                                 |> List.filter (\id -> id /= clientId)
                                 |> List.map
                                     (\id ->
-                                        Lamdera.sendToFrontend id (OtherLoggedIn account.character.skin account.username)
+                                        Lamdera.sendToFrontend id (OtherLoggedIn account.username)
                                     )
                     in
                     ( { model | accounts = List.setIf match account_ model.accounts }
@@ -120,24 +113,6 @@ updateFromFrontend sessionId clientId msg model =
                 Nothing ->
                     ( model, Lamdera.sendToFrontend clientId WrongUsernameOrPassword )
 
-        UpdatePlayer character ->
-            case List.find (\a -> a.loggedIn == Just clientId) model.accounts of
-                Just account ->
-                    ( { model
-                        | accounts =
-                            List.setIf (\a -> a.loggedIn == Just clientId)
-                                { account | character = character }
-                                model.accounts
-                      }
-                    , model.accounts
-                        |> List.filterMap .loggedIn
-                        |> List.filter (\id -> id /= clientId)
-                        |> List.map (\id -> Lamdera.sendToFrontend id (UpdateOtherPlayer account.username character))
-                        |> Cmd.batch
-                    )
-
-                Nothing ->
-                    ( model, Cmd.none )
 
         CheckName username ->
             let
@@ -146,23 +121,7 @@ updateFromFrontend sessionId clientId msg model =
             in
             ( model, Lamdera.sendToFrontend clientId (CheckNameResponse exists) )
 
-        GetChunk x y ->
-            case Dict.get ( x, y ) model.chunks of
-                Just chunk ->
-                    ( model, Lamdera.sendToFrontend clientId (ChunkResponse x y chunk) )
 
-                Nothing ->
-                    let
-                        chunk =
-                            World.generateChunk x y
-                    in
-                    ( if devMode then
-                        model
-
-                      else
-                        { model | chunks = Dict.insert ( x, y ) chunk model.chunks }
-                    , Lamdera.sendToFrontend clientId (ChunkResponse x y chunk)
-                    )
 
         SendMessage message ->
             ( model
@@ -175,7 +134,6 @@ updateFromFrontend sessionId clientId msg model =
                                 Lamdera.sendToFrontend id
                                     (GotMessage
                                         { username = sender.username
-                                        , skin = sender.character.skin
                                         , message = message
                                         }
                                     )

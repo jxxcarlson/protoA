@@ -16,8 +16,6 @@ init =
     { username = ""
     , password = ""
     , password2 = ""
-    , characterPicker = False
-    , character = Nothing
     , failed = False
     , blurred = False
     }
@@ -34,9 +32,6 @@ update msg model =
         InputPassword2 string ->
             ( { model | password2 = string }, Cmd.none )
 
-        SelectedCharacter int ->
-            ( { model | character = Just int }, Cmd.none )
-
         Blurred ->
             ( { model | blurred = True }, Cmd.none )
 
@@ -49,25 +44,23 @@ update msg model =
 
         Register ->
             case
-                ( model.character |> Maybe.andThen Character.create
-                , String.length model.password > 6 && model.password == model.password2
-                )
+                 String.length model.password > 6 && model.password == model.password2
+
             of
-                ( Just character, True ) ->
+                 True  ->
                     ( model
                     , Lamdera.sendToBackend
                         (CreateAccount model.username
                             (Hash.fromString model.password)
-                            character.skin
                         )
                     )
 
-                _ ->
+                 _ ->
                     ( model, Cmd.none )
 
 
 view model =
-    if not model.characterPicker then
+    if True then
         let
             stats =
                 Rumkin.getStats model.password
@@ -117,14 +110,9 @@ view model =
 
     else
         div [ class "main" ]
-            [ characterPicker model.character
-            , button
+            [ button
                 [ class "big"
-                , if model.character == Nothing then
-                    class "disabled"
-
-                  else
-                    onClick Register
+                  ,  onClick Register
                 ]
                 [ text "Enter world" ]
             ]
@@ -151,20 +139,3 @@ viewStrength { strength } =
                     ( "limegreen", "Very Strong" )
     in
     span [ style "color" color ] [ text string ]
-
-
-characterPicker selected =
-    div [ class "characterPicker" ]
-        (h2 [] [ text "Choose your appearance" ]
-            :: (Character.skinList
-                    |> List.map
-                        (\skin ->
-                            Html.button
-                                [ classList [ ( "character", True ), ( "selected", selected == Just skin ) ]
-                                , style "background-image" ("url(" ++ Character.url skin ++ ")")
-                                , onClick (SelectedCharacter skin)
-                                ]
-                                []
-                        )
-               )
-        )

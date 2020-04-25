@@ -21,12 +21,12 @@ type Page
     = StartPage
     | LoginPage LoginModel
     | RegisterPage RegisterModel
-    | GamePage (Playground.Game Memory)
+    | ConferencePage ConferenceModel
 
 
 type alias Memory =
     { player : Character
-    , others : Dict String Character
+    , others : List String
     , chunks : Dict ( Int, Int ) (Request Chunk)
     , messages : List ( Int, Message )
     , chatInput : Maybe String
@@ -35,7 +35,7 @@ type alias Memory =
 
 
 type alias Message =
-    { username : String, skin : Int, message : String }
+    { username : String, message : String }
 
 
 type Request a
@@ -45,14 +45,12 @@ type Request a
 
 type alias BackendModel =
     { accounts : List Account
-    , chunks : Dict ( Int, Int ) Chunk
     }
 
 
 type alias Account =
     { username : String
     , passwordHash : Hash
-    , character : Character
     , loggedIn : Maybe ClientId
     }
 
@@ -60,7 +58,7 @@ type alias Account =
 type FrontendMsg
     = LoginMsg LoginMsg
     | RegisterMsg RegisterMsg
-    | GameMsg Playground.Msg
+    | ConferenceMsg ConferenceMsg
     | GotoLogin
     | GotoRegister
     | KeyDown String
@@ -72,11 +70,9 @@ type FrontendMsg
 
 type ToBackend
     = CheckName String
-    | CreateAccount String Hash Int
+    | CreateAccount String Hash
     | Login String Hash
-    | UpdatePlayer Character
     | SendMessage String
-    | GetChunk Int Int
 
 
 type BackendMsg
@@ -84,12 +80,12 @@ type BackendMsg
 
 
 type ToFrontend
-    = LoggedIn Account (Dict String Character)
-    | OtherLoggedIn Int String
+    = LoggedIn Account (List String)
+    | OtherLoggedIn String
     | CheckNameResponse Bool
     | WrongUsernameOrPassword
     | UsernameAlreadyExists
-    | UpdateOtherPlayer String Character
+    | UpdateOtherPlayer String
     | GotMessage Message
     | ChunkResponse Int Int Chunk
 
@@ -98,8 +94,6 @@ type alias RegisterModel =
     { username : String
     , password : String
     , password2 : String
-    , characterPicker : Bool
-    , character : Maybe Int
     , failed : Bool
     , blurred : Bool
     }
@@ -111,7 +105,6 @@ type RegisterMsg
     | InputPassword2 String
     | Blurred
     | Next
-    | SelectedCharacter Int
     | Register
 
 
@@ -126,3 +119,9 @@ type LoginMsg
     = LoginUsername String
     | LoginPassword String
     | Submit
+
+type alias ConferenceModel =
+  { foo : String }
+
+type ConferenceMsg
+  = FooBar

@@ -5,7 +5,7 @@ import Browser.Events
 import Character
 import Css
 import Dict
-import GamePage
+import Element
 import Hash
 import Html exposing (..)
 import Html.Attributes exposing (..)
@@ -19,6 +19,7 @@ import Misc exposing (none)
 import Playground.Advanced as Playground
 import Process
 import RegisterPage
+import ConferencePage
 import Task
 import Types exposing (..)
 
@@ -54,8 +55,7 @@ app =
 subscriptions : FrontendModel -> Sub FrontendMsg
 subscriptions model =
     Sub.batch
-        [ Sub.map GameMsg Playground.subscriptions.all
-        , Browser.Events.onKeyDown (Decode.field "code" Decode.string |> Decode.map KeyDown)
+        [  Browser.Events.onKeyDown (Decode.field "code" Decode.string |> Decode.map KeyDown)
         ]
 
 
@@ -75,9 +75,8 @@ devInit =
                     { username = ""
                     , loggedIn = Nothing
                     , passwordHash = Hash.fromString ""
-                    , character = char
                     }
-                    Dict.empty
+                    []
                 )
                 { page = StartPage }
 
@@ -100,79 +99,6 @@ update msg model =
             RegisterPage.update submsg submodel
                 |> with RegisterMsg RegisterPage model
 
-        ( GameMsg submsg, GamePage submodel ) ->
-            GamePage.game.update submsg submodel
-                |> (\( newmodel, cmd ) ->
-                        let
-                            newMemory =
-                                Playground.get newmodel |> Tuple.second
-
-                            oldMemory =
-                                Playground.get submodel |> Tuple.second
-
-                            ( cx, cy ) =
-                                newMemory.player.coords
-                                    |> (\( x, y ) ->
-                                            ( round <| x / (64 * 16), round <| y / (64 * 16) )
-                                       )
-
-                            cmd_ =
-                                if newMemory.player /= oldMemory.player then
-                                    Lamdera.sendToBackend (UpdatePlayer newMemory.player)
-
-                                else
-                                    Cmd.none
-                        in
-                        ( { page = GamePage newmodel }
-                        , Cmd.batch
-                            [ Cmd.map GameMsg cmd
-                            , cmd_
-                            ]
-                        )
-                            |> checkChunk cx cy
-                            |> checkChunk (cx - 1) cy
-                            |> checkChunk cx (cy - 1)
-                            |> checkChunk (cx - 1) (cy - 1)
-                   )
-
-        ( KeyDown code, GamePage submodel ) ->
-            if code == "Enter" then
-                let
-                    ( _, memory ) =
-                        Playground.get submodel
-                in
-                case memory.chatInput of
-                    Just message ->
-                        ( { model | page = GamePage (submodel |> Playground.edit (\_ mem -> { mem | chatInput = Nothing })) }
-                        , if message == "" then
-                            Cmd.none
-
-                          else
-                            Lamdera.sendToBackend (SendMessage message)
-                        )
-
-                    Nothing ->
-                        ( { model | page = GamePage (submodel |> Playground.edit (\_ mem -> { mem | chatInput = Just "" })) }
-                        , Browser.Dom.focus "chatInput" |> Task.attempt (always Noop)
-                        )
-
-            else
-                ( model, Cmd.none )
-
-        ( ChatInput message, GamePage submodel ) ->
-            ( { model | page = GamePage (submodel |> Playground.edit (\_ mem -> { mem | chatInput = Just message })) }, Cmd.none )
-
-        ( RemoveMessage i, GamePage submodel ) ->
-            ( { model
-                | page =
-                    GamePage
-                        (submodel
-                            |> Playground.edit (\_ mem -> { mem | messages = List.filter (\( i_, m ) -> i_ /= i) mem.messages })
-                        )
-              }
-            , Cmd.none
-            )
-
         ( GotoLogin, _ ) ->
             ( { model | page = LoginPage LoginPage.init }, Cmd.none )
 
@@ -183,23 +109,6 @@ update msg model =
             ( model, Cmd.none )
 
 
-checkChunk x y ( model, cmd ) =
-    case model.page of
-        GamePage game ->
-            let
-                memory =
-                    Playground.get game |> Tuple.second
-            in
-            if Dict.get ( x, y ) memory.chunks == Nothing then
-                ( { page = GamePage (game |> Playground.edit (\_ _ -> { memory | chunks = Dict.insert ( x, y ) Pending memory.chunks })) }
-                , Cmd.batch [ cmd, Lamdera.sendToBackend (GetChunk x y) ]
-                )
-
-            else
-                ( model, cmd )
-
-        _ ->
-            ( model, cmd )
 
 
 with msg page model =
@@ -213,8 +122,8 @@ updateFromBackend : ToFrontend -> FrontendModel -> ( FrontendModel, Cmd Frontend
 updateFromBackend msg model =
     case ( msg, model.page ) of
         ( LoggedIn account others, _ ) ->
-            GamePage.init account others
-                |> with GameMsg GamePage model
+          ConferencePage.init account others
+                |> with ConferenceMsg ConferencePage model
 
         ( WrongUsernameOrPassword, LoginPage loginModel ) ->
             ( { page = LoginPage { loginModel | failed = True } }, Cmd.none )
@@ -224,56 +133,12 @@ updateFromBackend msg model =
                 ( { page = RegisterPage { registerModel | failed = True } }, Cmd.none )
 
             else
-                ( { page = RegisterPage { registerModel | characterPicker = True } }, Cmd.none )
+                ( { page = RegisterPage { registerModel | failed = False } }, Cmd.none )
 
         ( UsernameAlreadyExists, RegisterPage registerModel ) ->
             ( { page = RegisterPage { registerModel | failed = True } }, Cmd.none )
 
-        ( UpdateOtherPlayer username character, GamePage game ) ->
-            ( { model
-                | page =
-                    GamePage <|
-                        Playground.edit
-                            (\_ memory ->
-                                { memory | others = Dict.insert username character memory.others }
-                            )
-                            game
-              }
-            , Cmd.none
-            )
 
-        ( ChunkResponse x y chunk, GamePage game ) ->
-            ( { model
-                | page =
-                    GamePage <|
-                        Playground.edit
-                            (\_ memory ->
-                                { memory | chunks = Dict.insert ( x, y ) (Received chunk) memory.chunks }
-                            )
-                            game
-              }
-            , Cmd.none
-            )
-
-        ( GotMessage message, GamePage game ) ->
-            let
-                ( _, mem ) =
-                    Playground.get game
-            in
-            ( { model
-                | page =
-                    GamePage <|
-                        Playground.edit
-                            (\_ memory ->
-                                { memory
-                                    | messages = ( memory.messageI, message ) :: memory.messages |> List.take 10
-                                    , messageI = memory.messageI + 1
-                                }
-                            )
-                            game
-              }
-            , Process.sleep 30000 |> Task.perform (\_ -> RemoveMessage mem.messageI)
-            )
 
         _ ->
             ( model, Cmd.none )
@@ -290,16 +155,10 @@ view model =
             RegisterPage regmodel ->
                 RegisterPage.view regmodel |> Html.map RegisterMsg
 
-            GamePage gamemodel ->
-                let
-                    ( _, memory ) =
-                        Playground.get gamemodel
-                in
-                div []
-                    [ GamePage.game.view gamemodel
-                    , lazy2 chat memory.messages memory.chatInput
-                    , viewCoords memory.player.coords
-                    ]
+            ConferencePage conferencemodel ->
+                ConferencePage.view conferencemodel--  |> Element.map ConferenceMsg
+
+
 
             StartPage ->
                 startView
